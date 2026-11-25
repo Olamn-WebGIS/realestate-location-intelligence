@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>Lekki-Ajah Property Intelligence</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212b;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --surface: #fff;
+      --canvas: #f3f6fa;
+      --navy: #111827;
+      --teal: #0f766e;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --gold: #f4c542;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); color: var(--ink); }
+    header {
+      background: var(--navy);
+      color: #fff;
+      padding: 22px clamp(16px, 4vw, 48px);
+      border-bottom: 3px solid #0f766e;
+    }
+    .header-inner { max-width: 1500px; margin: auto; display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+    h1 { font-size: clamp(1.35rem, 3vw, 2rem); margin: 0 0 5px; letter-spacing: -.025em; }
+    header p { margin: 0; color: #cbd5e1; font-size: .92rem; }
+    .crs-badge { border: 1px solid #475569; color: #d1fae5; border-radius: 999px; padding: 8px 12px; font-size: .77rem; white-space: nowrap; }
+    main { max-width: 1500px; padding: 22px clamp(12px, 3vw, 36px) 40px; margin: auto; }
+    .kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .card, .kpi, .filters {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px #0f172a08;
+    }
+    .kpi { padding: 15px 17px; min-height: 100px; }
+    .kpi-label { color: var(--muted); font-size: .76rem; font-weight: 650; text-transform: uppercase; letter-spacing: .055em; }
+    .kpi-value { margin-top: 9px; font-size: clamp(1.15rem, 2vw, 1.65rem); line-height: 1.15; font-weight: 750; overflow-wrap: anywhere; }
+    .kpi-sub { margin-top: 5px; font-size: .76rem; color: var(--muted); }
+    .filters { padding: 16px; display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)) minmax(220px, 1.6fr) auto; gap: 13px; align-items: end; margin-bottom: 16px; }
+    .control label { display: block; color: #475569; font-size: .76rem; font-weight: 700; margin-bottom: 6px; }
+    select, input[type="search"] {
+      width: 100%; min-height: 40px; border: 1px solid #cbd5e1; border-radius: 8px;
+      background: #fff; padding: 8px 10px; color: var(--ink); font: inherit; font-size: .88rem;
+    }
+    .range-values { display: flex; justify-content: space-between; font-size: .75rem; color: var(--muted); margin: 0 0 3px; }
+    .range-pair { display: grid; gap: 3px; }
+    input[type="range"] { width: 100%; accent-color: var(--teal); margin: 2px 0; }
+    button { font: inherit; }
+    .reset {
+      min-height: 40px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 13px;
+      background: #fff; color: #334155; font-weight: 650; cursor: pointer;
+    }
+    .reset:hover, .property-row:hover { background: #f8fafc; }
+    .primary-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .8fr); gap: 16px; align-items: stretch; }
+    .card { padding: 17px; min-width: 0; }
+    .section-heading { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 12px; }
+    h2 { font-size: 1rem; margin: 0; letter-spacing: -.01em; }
+    .section-note { color: var(--muted); font-size: .78rem; line-height: 1.45; margin: 5px 0 0; }
+    #map { width: 100%; height: 540px; border: 1px solid #d6dee8; border-radius: 9px; background: #edf2f5; overflow: hidden; }
+    .map-legend { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0 0; color: #475569; font-size: .77rem; }
+    .legend-item { display: inline-flex; gap: 6px; align-items: center; }
+    .legend-dot { width: 11px; height: 11px; display: inline-block; border: 1px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #64748b; }
+    .legend-star { color: #b77900; font-size: 1.1rem; line-height: 1; }
+    .map-disclaimer { margin: 9px 0 0; color: var(--muted); font-size: .72rem; }
+    .leaflet-container { font: inherit; }
+    .leaflet-popup-content-wrapper { border-radius: 9px; }
+    .leaflet-popup-content { margin: 12px 14px; line-height: 1.45; }
+    .leaflet-control-attribution { font-size: 10px !important; }
+    .top-pick-star {
+      color: var(--gold); font-size: 31px; line-height: 34px; text-align: center;
+      width: 36px !important; height: 38px !important; text-shadow: 0 1px 3px #604800, 0 0 2px white;
+    }
+    .details-empty { color: var(--muted); padding: 20px 2px; font-size: .9rem; }
+    .detail-title { font-weight: 750; font-size: 1.14rem; margin: 2px 0 3px; }
+    .detail-subtitle { color: var(--muted); font-size: .82rem; margin: 0 0 12px; }
+    .detail-score { display: inline-flex; align-items: center; gap: 7px; background: #ecfdf5; color: #166534; font-weight: 750; padding: 7px 10px; border-radius: 8px; margin-bottom: 12px; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .detail-stat { border: 1px solid var(--line); background: #fafcff; border-radius: 8px; padding: 9px; min-width: 0; }
+    .detail-stat span { display: block; color: var(--muted); font-size: .7rem; margin-bottom: 4px; }
+    .detail-stat strong { font-size: .86rem; overflow-wrap: anywhere; }
+    .detail-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+    .detail-table th, .detail-table td { text-align: left; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+    .detail-table th { color: #475569; font-weight: 650; }
+    .detail-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+    .subscore-title { margin: 15px 0 6px; font-size: .82rem; }
+    .missing-note { color: var(--muted); font-size: .72rem; margin: 9px 0 0; line-height: 1.45; }
+    .lower-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+    .chart-wrap { height: 275px; position: relative; }
+    .insights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+    .insight { padding: 15px; border-left: 3px solid var(--teal); }
+    .insight-number { color: var(--teal); font-weight: 800; font-size: .75rem; }
+    .insight p { margin: 7px 0 0; font-size: .84rem; line-height: 1.5; }
+    .results { margin-top: 16px; }
+    .results-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .result-list { max-height: 360px; overflow-y: auto; border-top: 1px solid var(--line); }
+    .property-row {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto auto; width: 100%; text-align: left;
+      gap: 10px; align-items: center; padding: 10px 6px; border: 0; border-bottom: 1px solid var(--line);
+      background: #fff; color: inherit; cursor: pointer;
+    }
+    .property-name { font-weight: 650; font-size: .84rem; }
+    .property-meta { color: var(--muted); font-size: .73rem; margin-top: 3px; }
+    .score-pill { border-radius: 999px; padding: 4px 8px; font-size: .75rem; font-weight: 750; white-space: nowrap; }
+    .risk-pill { font-size: .72rem; color: #475569; white-space: nowrap; }
+    .footer-note { color: var(--muted); font-size: .75rem; line-height: 1.5; margin: 18px 2px 0; }
+    .no-results { color: var(--muted); padding: 16px 4px; font-size: .85rem; }
+    @media (max-width: 1050px) {
+      .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .primary-grid { grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); }
+    }
+    @media (max-width: 720px) {
+      header { padding: 17px 15px; }
+      .header-inner { align-items: flex-start; flex-direction: column; gap: 10px; }
+      main { padding: 13px 10px 28px; }
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .kpi { padding: 12px; min-height: 89px; }
+      .kpi:last-child { grid-column: span 2; }
+      .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; gap: 10px; }
+      .control.search { grid-column: span 2; }
+      .reset { grid-column: span 2; }
+      .primary-grid, .lower-grid { grid-template-columns: 1fr; gap: 11px; }
+      .card { padding: 13px; }
+      #map { height: 410px; }
+      .chart-wrap { height: 255px; }
+      .insights { grid-template-columns: 1fr; gap: 9px; }
+      .property-row { grid-template-columns: minmax(0, 1fr) auto; }
+      .risk-pill { grid-column: 1 / -1; margin-top: -6px; }
+    }
+    @media (max-width: 380px) {
+      .filters { grid-template-columns: 1fr; }
+      .control.search, .reset { grid-column: auto; }
+      .detail-grid { grid-template-columns: 1fr 1fr; }
+      #map { height: 370px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div>
+        <h1>Lekki-Ajah Property Intelligence</h1>
+        <p>100 property records · location score, access and recorded flood-risk screening</p>
+      </div>
+      <div class="crs-badge">WGS 84 · Leaflet EPSG:4326 · GeoJSON CRS84 coordinates</div>
+    </div>
+  </header>
+  <main>
+    <section class="kpis" aria-label="Portfolio key performance indicators">
+      <article class="kpi"><div class="kpi-label">Total Properties</div><div class="kpi-value" id="kpi-total">—</div><div class="kpi-sub" id="kpi-total-sub">Matching current filters</div></article>
+      <article class="kpi"><div class="kpi-label">Average Score</div><div class="kpi-value" id="kpi-score">—</div><div class="kpi-sub">Out of 100</div></article>
+      <article class="kpi"><div class="kpi-label">Average Price</div><div class="kpi-value" id="kpi-price">—</div><div class="kpi-sub">Asking price, NGN</div></article>
+      <article class="kpi"><div class="kpi-label">Best Property</div><div class="kpi-value" id="kpi-best">—</div><div class="kpi-sub" id="kpi-best-sub">Highest score in current results</div></article>
+      <article class="kpi"><div class="kpi-label">Low Flood Risk</div><div class="kpi-value" id="kpi-low-flood">—</div><div class="kpi-sub">Share of current results</div></article>
+    </section>
+
+    <section class="filters" aria-label="Property filters">
+      <div class="control"><label for="type-filter">Type</label><select id="type-filter"><option value="all">All types</option><option value="Land">Land</option><option value="Flat">Flat (all bedroom counts)</option><option value="Terrace">Terrace</option><option value="Duplex">Duplex</option></select></div>
+      <div class="control"><label for="area-filter">Area</label><select id="area-filter"><option value="all">All areas</option></select></div>
+      <div class="control"><label for="flood-filter">Flood risk</label><select id="flood-filter"><option value="all">All categories</option><option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option></select></div>
+      <div class="control"><label>Score range</label><div class="range-values"><span id="score-min-label">—</span><span id="score-max-label">—</span></div><div class="range-pair"><input id="score-min" type="range" aria-label="Minimum score"><input id="score-max" type="range" aria-label="Maximum score"></div></div>
+      <div class="control search"><label for="search">Search property name</label><input id="search" type="search" placeholder="e.g. Sannie - Plot 8"></div>
+      <button class="reset" id="reset-filters" type="button">Reset filters</button>
+    </section>
+
+    <section class="primary-grid">
+      <article class="card">
+        <div class="section-heading">
+          <div><h2>Property map</h2><p class="section-note"><span id="map-count">100</span> visible records · click a marker for details</p></div>
+          <div class="section-note">North-up · WGS 84 · property extent</div>
+        </div>
+        <div id="map" role="application" aria-label="Interactive property map"></div>
+        <div class="map-legend">
+          <span class="legend-item"><i class="legend-dot" style="background:#22c55e"></i>Score 80–100</span>
+          <span class="legend-item"><i class="legend-dot" style="background:#eab308"></i>Score 60–79</span>
+          <span class="legend-item"><i class="legend-dot" style="background:#ef4444"></i>Score below 60</span>
+          <span class="legend-item"><b class="legend-star">★</b>Top pick</span>
+        </div>
+        <p class="map-disclaimer">Esri World Imagery satellite basemap in EPSG:4326. Map panning is constrained to the supplied property extent. Internet connection required. <span id="basemap-status" aria-live="polite"></span></p>
+      </article>
+      <aside class="card" aria-live="polite">
+        <div class="section-heading"><div><h2>Property details</h2><p class="section-note">Select a map marker or result below.</p></div></div>
+        <div id="property-details" class="details-empty">Choose a property to inspect its recorded values.</div>
+      </aside>
+    </section>
+
+    <section class="lower-grid" aria-label="Property charts">
+      <article class="card"><div class="section-heading"><div><h2>Average location score by area</h2><p class="section-note">Mean score for currently filtered records</p></div></div><div class="chart-wrap"><canvas id="area-chart"></canvas></div></article>
+      <article class="card"><div class="section-heading"><div><h2>Land vs Flat asking price</h2><p class="section-note">Mean price; terraces and duplexes are excluded from this comparison</p></div></div><div class="chart-wrap"><canvas id="price-chart"></canvas></div></article>
+      <article class="card"><div class="section-heading"><div><h2>Recorded flood-risk count</h2><p class="section-note">Counts for currently filtered records</p></div></div><div class="chart-wrap"><canvas id="flood-chart"></canvas></div></article>
+      <article class="card"><div class="section-heading"><div><h2>Price vs location score</h2><p class="section-note">Each dot is one property; hover for its name</p></div></div><div class="chart-wrap"><canvas id="scatter-chart"></canvas></div></article>
+    </section>
+
+    <section class="insights" aria-label="Key findings from analysis report">
+      <article class="card insight"><div class="insight-number">FINDING 01</div><p><strong>Sannie - Plot 8</strong> in Ikate leads at 97/100, with an asking price of ₦72.4M and a Low flood-risk tag.</p></article>
+      <article class="card insight"><div class="insight-number">FINDING 02</div><p><strong>49 of 100</strong> records carry a High flood-risk tag; their mean location score is 68.94, versus 84.08 for Low-tagged records.</p></article>
+      <article class="card insight"><div class="insight-number">FINDING 03</div><p><strong>Lekki Phase 1</strong> has the highest area mean score (82.35) and mean price (₦133.17M). Ikate averages 78.65 at ₦108.11M, with 10 of 20 tagged High flood risk.</p></article>
+    </section>
+
+    <section class="card results">
+      <div class="results-head"><div><h2>Matching properties</h2><p class="section-note">Select a row to open its map popup and details.</p></div><span class="section-note" id="result-total"></span></div>
+      <div id="result-list" class="result-list"></div>
+    </section>
+    <p class="footer-note">FAVOUR OLAMILEKAN ADEOYE - GEOSPATIAL SCIENTIST.</p>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script>
+    const GEOJSON = {"type":"FeatureCollection","name":"lekki-ajah-100-properties-re","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"name":"Admiralty - Plot 1","area":"Lekki Phase 1","type":"Land","price":231200000,"land_size_sqm":300,"lat":6.433113,"lon":3.489239,"dist-water":2557,"flood_risks":"Low","price_per_sqm":770667,"location_score":74,"distance-to-school_dist_school_real":2041,"distance-to-hospital_dist_hospital":5890,"distance-to-supermarket_dist_market":4208,"distance-to-road_dist_road_real":5,"distance-to-bus_dist_bus":119},"geometry":{"type":"Point","coordinates":[3.489239,6.433113]}},{"type":"Feature","properties":{"name":"Royal Palm - Plot 2","area":"Lekki Phase 1","type":"Land","price":341000000,"land_size_sqm":900,"lat":6.4376,"lon":3.489356,"dist-water":2095,"flood_risks":"Low","price_per_sqm":378889,"location_score":91,"distance-to-school_dist_school_real":1930,"distance-to-hospital_dist_hospital":5800,"distance-to-supermarket_dist_market":4206,"distance-to-road_dist_road_real":18,"distance-to-bus_dist_bus":372},"geometry":{"type":"Point","coordinates":[3.489356,6.4376]}},{"type":"Feature","properties":{"name":"Ocean Bay - Plot 3","area":"Lekki Phase 1","type":"2-Bed Flat","price":48000000,"land_size_sqm":0,"lat":6.441072,"lon":3.493104,"dist-water":1586,"flood_risks":"Low","price_per_sqm":null,"location_score":81,"distance-to-school_dist_school_real":2333,"distance-to-hospital_dist_hospital":6162,"distance-to-supermarket_dist_market":4647,"distance-to-road_dist_road_real":7,"distance-to-bus_dist_bus":725},"geometry":{"type":"Point","coordinates":[3.493104,6.441072]}},{"type":"Feature","properties":{"name":"Lekki Pearl - Plot 4","area":"Lekki Phase 1","type":"5-Bed Terrace","price":162800000,"land_size_sqm":300,"lat":6.429786,"lon":3.486488,"dist-water":2880,"flood_risks":"Low","price_per_sqm":542667,"location_score":86,"distance-to-school_dist_school_real":1944,"distance-to-hospital_dist_hospital":5702,"distance-to-supermarket_dist_market":3957,"distance-to-road_dist_road_real":17,"distance-to-bus_dist_bus":496},"geometry":{"type":"Point","coordinates":[3.486488,6.429786]}},{"type":"Feature","properties":{"name":"Atlantic View - Plot 5","area":"Lekki Phase 1","type":"2-Bed Flat","price":83200000,"land_size_sqm":0,"lat":6.441547,"lon":3.492872,"dist-water":1544,"flood_risks":"Low","price_per_sqm":null,"location_score":81,"distance-to-school_dist_school_real":2311,"distance-to-hospital_dist_hospital":6132,"distance-to-supermarket_dist_market":4627,"distance-to-road_dist_road_real":12,"distance-to-bus_dist_bus":774},"geometry":{"type":"Point","coordinates":[3.492872,6.441547]}},{"type":"Feature","properties":{"name":"Crown Estate - Plot 6","area":"Lekki Phase 1","type":"Land","price":110200000,"land_size_sqm":450,"lat":6.451071,"lon":3.474462,"dist-water":535,"flood_risks":"Medium","price_per_sqm":244889,"location_score":83,"distance-to-school_dist_school_real":601,"distance-to-hospital_dist_hospital":4109,"distance-to-supermarket_dist_market":3023,"distance-to-road_dist_road_real":41,"distance-to-bus_dist_bus":2130},"geometry":{"type":"Point","coordinates":[3.474462,6.451071]}},{"type":"Feature","properties":{"name":"Skwdo - Plot 7","area":"Lekki Phase 1","type":"Land","price":87900000,"land_size_sqm":324,"lat":6.44147,"lon":3.475836,"dist-water":1133,"flood_risks":"Low","price_per_sqm":271296,"location_score":93,"distance-to-school_dist_school_real":457,"distance-to-hospital_dist_hospital":4259,"distance-to-supermarket_dist_market":2765,"distance-to-road_dist_road_real":28,"distance-to-bus_dist_bus":1104},"geometry":{"type":"Point","coordinates":[3.475836,6.44147]}},{"type":"Feature","properties":{"name":"Palm Court - Plot 8","area":"Lekki Phase 1","type":"4-Bed Duplex","price":136700000,"land_size_sqm":450,"lat":6.439642,"lon":3.49006,"dist-water":1858,"flood_risks":"Low","price_per_sqm":303778,"location_score":91,"distance-to-school_dist_school_real":1992,"distance-to-hospital_dist_hospital":5844,"distance-to-supermarket_dist_market":4296,"distance-to-road_dist_road_real":24,"distance-to-bus_dist_bus":594},"geometry":{"type":"Point","coordinates":[3.49006,6.439642]}},{"type":"Feature","properties":{"name":"Golden Isle - Plot 9","area":"Lekki Phase 1","type":"3-Bed Terrace","price":86400000,"land_size_sqm":300,"lat":6.46796,"lon":3.493884,"dist-water":21,"flood_risks":"High","price_per_sqm":288000,"location_score":60,"distance-to-school_dist_school_real":3441,"distance-to-hospital_dist_hospital":6669,"distance-to-supermarket_dist_market":5497,"distance-to-road_dist_road_real":4,"distance-to-bus_dist_bus":3048},"geometry":{"type":"Point","coordinates":[3.493884,6.46796]}},{"type":"Feature","properties":{"name":"Marina Park - Plot 10","area":"Lekki Phase 1","type":"2-Bed Flat","price":52600000,"land_size_sqm":0,"lat":6.435494,"lon":3.494824,"dist-water":2148,"flood_risks":"Low","price_per_sqm":null,"location_score":81,"distance-to-school_dist_school_real":2564,"distance-to-hospital_dist_hospital":6436,"distance-to-supermarket_dist_market":4810,"distance-to-road_dist_road_real":46,"distance-to-bus_dist_bus":316},"geometry":{"type":"Point","coordinates":[3.494824,6.435494]}},{"type":"Feature","properties":{"name":"Admiralty - Plot 11","area":"Lekki Phase 1","type":"Land","price":174100000,"land_size_sqm":324,"lat":6.429405,"lon":3.474171,"dist-water":2211,"flood_risks":"Low","price_per_sqm":537346,"location_score":89,"distance-to-school_dist_school_real":1175,"distance-to-hospital_dist_hospital":4450,"distance-to-supermarket_dist_market":2644,"distance-to-road_dist_road_real":45,"distance-to-bus_dist_bus":491},"geometry":{"type":"Point","coordinates":[3.474171,6.429405]}},{"type":"Feature","properties":{"name":"Royal Palm - Plot 12","area":"Lekki Phase 1","type":"Land","price":210300000,"land_size_sqm":600,"lat":6.447517,"lon":3.488677,"dist-water":1081,"flood_risks":"Low","price_per_sqm":350500,"location_score":87,"distance-to-school_dist_school_real":1929,"distance-to-hospital_dist_hospital":5648,"distance-to-supermarket_dist_market":4306,"distance-to-road_dist_road_real":13,"distance-to-bus_dist_bus":1470},"geometry":{"type":"Point","coordinates":[3.488677,6.447517]}},{"type":"Feature","properties":{"name":"Ocean Bay - Plot 13","area":"Lekki Phase 1","type":"3-Bed Flat","price":49200000,"land_size_sqm":0,"lat":6.428128,"lon":3.492175,"dist-water":3000,"flood_risks":"Low","price_per_sqm":null,"location_score":81,"distance-to-school_dist_school_real":2574,"distance-to-hospital_dist_hospital":6356,"distance-to-supermarket_dist_market":4610,"distance-to-road_dist_road_real":21,"distance-to-bus_dist_bus":670},"geometry":{"type":"Point","coordinates":[3.492175,6.428128]}},{"type":"Feature","properties":{"name":"Lekki Pearl - Plot 14","area":"Lekki Phase 1","type":"4-Bed Duplex","price":203100000,"land_size_sqm":450,"lat":6.43578,"lon":3.470128,"dist-water":1411,"flood_risks":"Low","price_per_sqm":451333,"location_score":89,"distance-to-school_dist_school_real":481,"distance-to-hospital_dist_hospital":3776,"distance-to-supermarket_dist_market":2080,"distance-to-road_dist_road_real":15,"distance-to-bus_dist_bus":485},"geometry":{"type":"Point","coordinates":[3.470128,6.43578]}},{"type":"Feature","properties":{"name":"Atlantic View - Plot 15","area":"Lekki Phase 1","type":"4-Bed Duplex","price":204100000,"land_size_sqm":450,"lat":6.444487,"lon":3.479979,"dist-water":1319,"flood_risks":"Low","price_per_sqm":453556,"location_score":85,"distance-to-school_dist_school_real":957,"distance-to-hospital_dist_hospital":4688,"distance-to-supermarket_dist_market":3289,"distance-to-road_dist_road_real":14,"distance-to-bus_dist_bus":1278},"geometry":{"type":"Point","coordinates":[3.479979,6.444487]}},{"type":"Feature","properties":{"name":"Crown Estate - Plot 16","area":"Lekki Phase 1","type":"3-Bed Terrace","price":133800000,"land_size_sqm":300,"lat":6.436102,"lon":3.441035,"dist-water":100,"flood_risks":"High","price_per_sqm":446000,"location_score":68,"distance-to-school_dist_school_real":246,"distance-to-hospital_dist_hospital":1182,"distance-to-supermarket_dist_market":1045,"distance-to-road_dist_road_real":5,"distance-to-bus_dist_bus":1216},"geometry":{"type":"Point","coordinates":[3.441035,6.436102]}},{"type":"Feature","properties":{"name":"Skwdo - Plot 17","area":"Lekki Phase 1","type":"3-Bed Flat","price":92700000,"land_size_sqm":0,"lat":6.43428,"lon":3.471555,"dist-water":1615,"flood_risks":"Low","price_per_sqm":null,"location_score":92,"distance-to-school_dist_school_real":612,"distance-to-hospital_dist_hospital":3978,"distance-to-supermarket_dist_market":2249,"distance-to-road_dist_road_real":43,"distance-to-bus_dist_bus":352},"geometry":{"type":"Point","coordinates":[3.471555,6.43428]}},{"type":"Feature","properties":{"name":"Palm Court - Plot 18","area":"Lekki Phase 1","type":"2-Bed Flat","price":61150000,"land_size_sqm":0,"lat":6.441828,"lon":3.484826,"dist-water":1810,"flood_risks":"Low","price_per_sqm":null,"location_score":85,"distance-to-school_dist_school_real":1431,"distance-to-hospital_dist_hospital":5243,"distance-to-supermarket_dist_market":3750,"distance-to-road_dist_road_real":59,"distance-to-bus_dist_bus":959},"geometry":{"type":"Point","coordinates":[3.484826,6.441828]}},{"type":"Feature","properties":{"name":"Golden Isle - Plot 19","area":"Lekki Phase 1","type":"5-Bed Terrace","price":126800000,"land_size_sqm":300,"lat":6.46569,"lon":3.47639,"dist-water":0,"flood_risks":"High","price_per_sqm":422667,"location_score":58,"distance-to-school_dist_school_real":2160,"distance-to-hospital_dist_hospital":4796,"distance-to-supermarket_dist_market":3563,"distance-to-road_dist_road_real":162,"distance-to-bus_dist_bus":3653},"geometry":{"type":"Point","coordinates":[3.47639,6.46569]}},{"type":"Feature","properties":{"name":"Marina Park - Plot 20","area":"Lekki Phase 1","type":"3-Bed Flat","price":68100000,"land_size_sqm":0,"lat":6.43154,"lon":3.473421,"dist-water":1961,"flood_risks":"Low","price_per_sqm":null,"location_score":92,"distance-to-school_dist_school_real":927,"distance-to-hospital_dist_hospital":4279,"distance-to-supermarket_dist_market":2503,"distance-to-road_dist_road_real":7,"distance-to-bus_dist_bus":357},"geometry":{"type":"Point","coordinates":[3.473421,6.43154]}},{"type":"Feature","properties":{"name":"Ikate Gardens - Plot 1","area":"Ikate","type":"Land","price":75000000,"land_size_sqm":450,"lat":6.435343,"lon":3.505804,"dist-water":2144,"flood_risks":"Low","price_per_sqm":166667,"location_score":76,"distance-to-school_dist_school_real":3766,"distance-to-hospital_dist_hospital":7635,"distance-to-supermarket_dist_market":6025,"distance-to-road_dist_road_real":25,"distance-to-bus_dist_bus":234},"geometry":{"type":"Point","coordinates":[3.505804,6.435343]}},{"type":"Feature","properties":{"name":"Eleganza - Plot 2","area":"Ikate","type":"Land","price":153000000,"land_size_sqm":640,"lat":6.435977,"lon":3.507926,"dist-water":2116,"flood_risks":"Low","price_per_sqm":239063,"location_score":73,"distance-to-school_dist_school_real":3990,"distance-to-hospital_dist_hospital":7857,"distance-to-supermarket_dist_market":6258,"distance-to-road_dist_road_real":14,"distance-to-bus_dist_bus":443},"geometry":{"type":"Point","coordinates":[3.507926,6.435977]}},{"type":"Feature","properties":{"name":"Ikate View - Plot 3","area":"Ikate","type":"Land","price":179000000,"land_size_sqm":324,"lat":6.427986,"lon":3.494496,"dist-water":2974,"flood_risks":"Low","price_per_sqm":552469,"location_score":78,"distance-to-school_dist_school_real":2806,"distance-to-hospital_dist_hospital":6605,"distance-to-supermarket_dist_market":4865,"distance-to-road_dist_road_real":16,"distance-to-bus_dist_bus":733},"geometry":{"type":"Point","coordinates":[3.494496,6.427986]}},{"type":"Feature","properties":{"name":"Peace Court - Plot 4","area":"Ikate","type":"4-Bed Duplex","price":111700000,"land_size_sqm":450,"lat":6.431901,"lon":3.427374,"dist-water":780,"flood_risks":"Medium","price_per_sqm":248222,"location_score":87,"distance-to-school_dist_school_real":935,"distance-to-hospital_dist_hospital":755,"distance-to-supermarket_dist_market":763,"distance-to-road_dist_road_real":27,"distance-to-bus_dist_bus":578},"geometry":{"type":"Point","coordinates":[3.427374,6.431901]}},{"type":"Feature","properties":{"name":"Ikate Pearl - Plot 5","area":"Ikate","type":"5-Bed Terrace","price":126200000,"land_size_sqm":300,"lat":6.440232,"lon":3.404096,"dist-water":30,"flood_risks":"High","price_per_sqm":420667,"location_score":72,"distance-to-school_dist_school_real":324,"distance-to-hospital_dist_hospital":1067,"distance-to-supermarket_dist_market":1283,"distance-to-road_dist_road_real":1,"distance-to-bus_dist_bus":479},"geometry":{"type":"Point","coordinates":[3.404096,6.440232]}},{"type":"Feature","properties":{"name":"Harmony - Plot 6","area":"Ikate","type":"Land","price":110000000,"land_size_sqm":648,"lat":6.441291,"lon":3.470936,"dist-water":852,"flood_risks":"Low","price_per_sqm":169753,"location_score":93,"distance-to-school_dist_school_real":187,"distance-to-hospital_dist_hospital":3724,"distance-to-supermarket_dist_market":2232,"distance-to-road_dist_road_real":33,"distance-to-bus_dist_bus":1097},"geometry":{"type":"Point","coordinates":[3.470936,6.441291]}},{"type":"Feature","properties":{"name":"Ikate Heights - Plot 7","area":"Ikate","type":"3-Bed Terrace","price":88700000,"land_size_sqm":300,"lat":6.44119,"lon":3.400947,"dist-water":2,"flood_risks":"High","price_per_sqm":295667,"location_score":76,"distance-to-school_dist_school_real":688,"distance-to-hospital_dist_hospital":766,"distance-to-supermarket_dist_market":1553,"distance-to-road_dist_road_real":55,"distance-to-bus_dist_bus":832},"geometry":{"type":"Point","coordinates":[3.400947,6.44119]}},{"type":"Feature","properties":{"name":"Sannie - Plot 8","area":"Ikate","type":"Land","price":72400000,"land_size_sqm":450,"lat":6.434616,"lon":3.474605,"dist-water":1690,"flood_risks":"Low","price_per_sqm":160889,"location_score":97,"distance-to-school_dist_school_real":641,"distance-to-hospital_dist_hospital":4287,"distance-to-supermarket_dist_market":2582,"distance-to-road_dist_road_real":1,"distance-to-bus_dist_bus":603},"geometry":{"type":"Point","coordinates":[3.474605,6.434616]}},{"type":"Feature","properties":{"name":"Ikate Royal - Plot 9","area":"Ikate","type":"Land","price":120700000,"land_size_sqm":648,"lat":6.435353,"lon":3.400453,"dist-water":0,"flood_risks":"High","price_per_sqm":186265,"location_score":71,"distance-to-school_dist_school_real":836,"distance-to-hospital_dist_hospital":1322,"distance-to-supermarket_dist_market":1142,"distance-to-road_dist_road_real":484,"distance-to-bus_dist_bus":812},"geometry":{"type":"Point","coordinates":[3.400453,6.435353]}},{"type":"Feature","properties":{"name":"Lekki Pride - Plot 10","area":"Ikate","type":"5-Bed Flat","price":90600000,"land_size_sqm":0,"lat":6.438007,"lon":3.428565,"dist-water":211,"flood_risks":"High","price_per_sqm":null,"location_score":78,"distance-to-school_dist_school_real":598,"distance-to-hospital_dist_hospital":1060,"distance-to-supermarket_dist_market":373,"distance-to-road_dist_road_real":3,"distance-to-bus_dist_bus":239},"geometry":{"type":"Point","coordinates":[3.428565,6.438007]}},{"type":"Feature","properties":{"name":"Ikate Gardens - Plot 11","area":"Ikate","type":"4-Bed Duplex","price":271000000,"land_size_sqm":450,"lat":6.43838,"lon":3.415227,"dist-water":0,"flood_risks":"High","price_per_sqm":602222,"location_score":67,"distance-to-school_dist_school_real":487,"distance-to-hospital_dist_hospital":792,"distance-to-supermarket_dist_market":1094,"distance-to-road_dist_road_real":147,"distance-to-bus_dist_bus":398},"geometry":{"type":"Point","coordinates":[3.415227,6.43838]}},{"type":"Feature","properties":{"name":"Eleganza - Plot 12","area":"Ikate","type":"5-Bed Flat","price":65000000,"land_size_sqm":0,"lat":6.435968,"lon":3.432379,"dist-water":504,"flood_risks":"Medium","price_per_sqm":null,"location_score":82,"distance-to-school_dist_school_real":276,"distance-to-hospital_dist_hospital":1248,"distance-to-supermarket_dist_market":289,"distance-to-road_dist_road_real":10,"distance-to-bus_dist_bus":717},"geometry":{"type":"Point","coordinates":[3.432379,6.435968]}},{"type":"Feature","properties":{"name":"Ikate View - Plot 13","area":"Ikate","type":"3-Bed Flat","price":75400000,"land_size_sqm":0,"lat":6.439419,"lon":3.400752,"dist-water":0,"flood_risks":"High","price_per_sqm":null,"location_score":70,"distance-to-school_dist_school_real":678,"distance-to-hospital_dist_hospital":920,"distance-to-supermarket_dist_market":1413,"distance-to-road_dist_road_real":162,"distance-to-bus_dist_bus":775},"geometry":{"type":"Point","coordinates":[3.400752,6.439419]}},{"type":"Feature","properties":{"name":"Peace Court - Plot 14","area":"Ikate","type":"Land","price":75900000,"land_size_sqm":450,"lat":6.434735,"lon":3.431244,"dist-water":618,"flood_risks":"Medium","price_per_sqm":168667,"location_score":87,"distance-to-school_dist_school_real":462,"distance-to-hospital_dist_hospital":1200,"distance-to-supermarket_dist_market":426,"distance-to-road_dist_road_real":35,"distance-to-bus_dist_bus":697},"geometry":{"type":"Point","coordinates":[3.431244,6.434735]}},{"type":"Feature","properties":{"name":"Ikate Pearl - Plot 15","area":"Ikate","type":"Land","price":91200000,"land_size_sqm":648,"lat":6.433106,"lon":3.423036,"dist-water":572,"flood_risks":"Medium","price_per_sqm":140741,"location_score":87,"distance-to-school_dist_school_real":1076,"distance-to-hospital_dist_hospital":274,"distance-to-supermarket_dist_market":444,"distance-to-road_dist_road_real":17,"distance-to-bus_dist_bus":419},"geometry":{"type":"Point","coordinates":[3.423036,6.433106]}},{"type":"Feature","properties":{"name":"Harmony - Plot 16","area":"Ikate","type":"Land","price":90900000,"land_size_sqm":648,"lat":6.444079,"lon":3.431596,"dist-water":126,"flood_risks":"High","price_per_sqm":140278,"location_score":80,"distance-to-school_dist_school_real":506,"distance-to-hospital_dist_hospital":671,"distance-to-supermarket_dist_market":614,"distance-to-road_dist_road_real":14,"distance-to-bus_dist_bus":423},"geometry":{"type":"Point","coordinates":[3.431596,6.444079]}},{"type":"Feature","properties":{"name":"Ikate Heights - Plot 17","area":"Ikate","type":"Land","price":100200000,"land_size_sqm":648,"lat":6.441331,"lon":3.431545,"dist-water":0,"flood_risks":"High","price_per_sqm":154630,"location_score":75,"distance-to-school_dist_school_real":465,"distance-to-hospital_dist_hospital":829,"distance-to-supermarket_dist_market":312,"distance-to-road_dist_road_real":150,"distance-to-bus_dist_bus":590},"geometry":{"type":"Point","coordinates":[3.431545,6.441331]}},{"type":"Feature","properties":{"name":"Sannie - Plot 18","area":"Ikate","type":"Land","price":112400000,"land_size_sqm":600,"lat":6.436154,"lon":3.437446,"dist-water":311,"flood_risks":"Medium","price_per_sqm":187333,"location_score":83,"distance-to-school_dist_school_real":152,"distance-to-hospital_dist_hospital":1102,"distance-to-supermarket_dist_market":667,"distance-to-road_dist_road_real":21,"distance-to-bus_dist_bus":1054},"geometry":{"type":"Point","coordinates":[3.437446,6.436154]}},{"type":"Feature","properties":{"name":"Ikate Royal - Plot 19","area":"Ikate","type":"Land","price":71800000,"land_size_sqm":450,"lat":6.432173,"lon":3.405107,"dist-water":0,"flood_risks":"High","price_per_sqm":159556,"location_score":75,"distance-to-school_dist_school_real":815,"distance-to-hospital_dist_hospital":1664,"distance-to-supermarket_dist_market":519,"distance-to-road_dist_road_real":211,"distance-to-bus_dist_bus":642},"geometry":{"type":"Point","coordinates":[3.405107,6.432173]}},{"type":"Feature","properties":{"name":"Lekki Pride - Plot 20","area":"Ikate","type":"3-Bed Terrace","price":81000000,"land_size_sqm":300,"lat":6.43215,"lon":3.400144,"dist-water":0,"flood_risks":"High","price_per_sqm":270000,"location_score":66,"distance-to-school_dist_school_real":1088,"distance-to-hospital_dist_hospital":1655,"distance-to-supermarket_dist_market":1030,"distance-to-road_dist_road_real":715,"distance-to-bus_dist_bus":1002},"geometry":{"type":"Point","coordinates":[3.400144,6.43215]}},{"type":"Feature","properties":{"name":"Jakande Park Gate - Plot 1","area":"Jakande","type":"3-Bed Flat","price":86000000,"land_size_sqm":0,"lat":6.44713,"lon":3.391976,"dist-water":0,"flood_risks":"High","price_per_sqm":null,"location_score":71,"distance-to-school_dist_school_real":1861,"distance-to-hospital_dist_hospital":440,"distance-to-supermarket_dist_market":2699,"distance-to-road_dist_road_real":93,"distance-to-bus_dist_bus":1843},"geometry":{"type":"Point","coordinates":[3.391976,6.44713]}},{"type":"Feature","properties":{"name":"Jakande Gardens - Plot 2","area":"Jakande","type":"Land","price":61200000,"land_size_sqm":600,"lat":6.45356,"lon":3.373146,"dist-water":0,"flood_risks":"High","price_per_sqm":102000,"location_score":68,"distance-to-school_dist_school_real":1957,"distance-to-hospital_dist_hospital":2565,"distance-to-supermarket_dist_market":4771,"distance-to-road_dist_road_real":158,"distance-to-bus_dist_bus":1822},"geometry":{"type":"Point","coordinates":[3.373146,6.45356]}},{"type":"Feature","properties":{"name":"Jakande View - Plot 3","area":"Jakande","type":"3-Bed Flat","price":89600000,"land_size_sqm":0,"lat":6.450771,"lon":3.381078,"dist-water":0,"flood_risks":"High","price_per_sqm":null,"location_score":66,"distance-to-school_dist_school_real":1623,"distance-to-hospital_dist_hospital":1644,"distance-to-supermarket_dist_market":3875,"distance-to-road_dist_road_real":332,"distance-to-bus_dist_bus":1482},"geometry":{"type":"Point","coordinates":[3.381078,6.450771]}},{"type":"Feature","properties":{"name":"First Gate Court - Plot 4","area":"Jakande","type":"3-Bed Flat","price":59100000,"land_size_sqm":0,"lat":6.459056,"lon":3.371495,"dist-water":0,"flood_risks":"High","price_per_sqm":null,"location_score":68,"distance-to-school_dist_school_real":1846,"distance-to-hospital_dist_hospital":2930,"distance-to-supermarket_dist_market":5239,"distance-to-road_dist_road_real":56,"distance-to-bus_dist_bus":1734},"geometry":{"type":"Point","coordinates":[3.371495,6.459056]}},{"type":"Feature","properties":{"name":"Jakande Pearl - Plot 5","area":"Jakande","type":"Land","price":56400000,"land_size_sqm":648,"lat":6.46986,"lon":3.374157,"dist-water":56,"flood_risks":"High","price_per_sqm":87037,"location_score":73,"distance-to-school_dist_school_real":1606,"distance-to-hospital_dist_hospital":3367,"distance-to-supermarket_dist_market":4037,"distance-to-road_dist_road_real":16,"distance-to-bus_dist_bus":953},"geometry":{"type":"Point","coordinates":[3.374157,6.46986]}},{"type":"Feature","properties":{"name":"Unity - Plot 6","area":"Jakande","type":"Land","price":76200000,"land_size_sqm":648,"lat":6.440027,"lon":3.377034,"dist-water":344,"flood_risks":"Medium","price_per_sqm":117593,"location_score":78,"distance-to-school_dist_school_real":2889,"distance-to-hospital_dist_hospital":2267,"distance-to-supermarket_dist_market":3728,"distance-to-road_dist_road_real":17,"distance-to-bus_dist_bus":2749},"geometry":{"type":"Point","coordinates":[3.377034,6.440027]}},{"type":"Feature","properties":{"name":"Jakande Heights - Plot 7","area":"Jakande","type":"2-Bed Flat","price":36700000,"land_size_sqm":0,"lat":6.4656,"lon":3.384654,"dist-water":0,"flood_risks":"High","price_per_sqm":null,"location_score":72,"distance-to-school_dist_school_real":355,"distance-to-hospital_dist_hospital":2265,"distance-to-supermarket_dist_market":4655,"distance-to-road_dist_road_real":83,"distance-to-bus_dist_bus":370},"geometry":{"type":"Point","coordinates":[3.384654,6.4656]}},{"type":"Feature","properties":{"name":"Jakande Royal - Plot 8","area":"Jakande","type":"2-Bed Flat","price":43400000,"land_size_sqm":0,"lat":6.447347,"lon":3.36054,"dist-water":833,"flood_risks":"Low","price_per_sqm":null,"location_score":75,"distance-to-school_dist_school_real":3498,"distance-to-hospital_dist_hospital":2755,"distance-to-supermarket_dist_market":5715,"distance-to-road_dist_road_real":13,"distance-to-bus_dist_bus":3366},"geometry":{"type":"Point","coordinates":[3.36054,6.447347]}},{"type":"Feature","properties":{"name":"Peace Estate - Plot 9","area":"Jakande","type":"Land","price":69600000,"land_size_sqm":648,"lat":6.455892,"lon":3.391551,"dist-water":312,"flood_risks":"Medium","price_per_sqm":107407,"location_score":83,"distance-to-school_dist_school_real":1005,"distance-to-hospital_dist_hospital":951,"distance-to-supermarket_dist_market":3481,"distance-to-road_dist_road_real":30,"distance-to-bus_dist_bus":947},"geometry":{"type":"Point","coordinates":[3.391551,6.455892]}},{"type":"Feature","properties":{"name":"Jakande Pride - Plot 10","area":"Jakande","type":"Land","price":86000000,"land_size_sqm":648,"lat":6.427302,"lon":3.391651,"dist-water":0,"flood_risks":"High","price_per_sqm":132716,"location_score":66,"distance-to-school_dist_school_real":2146,"distance-to-hospital_dist_hospital":2222,"distance-to-supermarket_dist_market":1950,"distance-to-road_dist_road_real":362,"distance-to-bus_dist_bus":2081},"geometry":{"type":"Point","coordinates":[3.391651,6.427302]}},{"type":"Feature","properties":{"name":"Jakande First Gate - Plot 11","area":"Jakande","type":"4-Bed Duplex","price":277000000,"land_size_sqm":450,"lat":6.436837,"lon":3.396062,"dist-water":0,"flood_risks":"High","price_per_sqm":615556,"location_score":63,"distance-to-school_dist_school_real":1228,"distance-to-hospital_dist_hospital":1097,"distance-to-supermarket_dist_market":1644,"distance-to-road_dist_road_real":187,"distance-to-bus_dist_bus":1265},"geometry":{"type":"Point","coordinates":[3.396062,6.436837]}},{"type":"Feature","properties":{"name":"Jakande Gardens - Plot 12","area":"Jakande","type":"Land","price":64600000,"land_size_sqm":450,"lat":6.451522,"lon":3.398538,"dist-water":360,"flood_risks":"Medium","price_per_sqm":143556,"location_score":83,"distance-to-school_dist_school_real":1634,"distance-to-hospital_dist_hospital":464,"distance-to-supermarket_dist_market":2674,"distance-to-road_dist_road_real":1,"distance-to-bus_dist_bus":1819},"geometry":{"type":"Point","coordinates":[3.398538,6.451522]}},{"type":"Feature","properties":{"name":"Jakande View - Plot 13","area":"Jakande","type":"Land","price":70700000,"land_size_sqm":648,"lat":6.469408,"lon":3.370362,"dist-water":93,"flood_risks":"High","price_per_sqm":109105,"location_score":73,"distance-to-school_dist_school_real":1981,"distance-to-hospital_dist_hospital":3645,"distance-to-supermarket_dist_market":4108,"distance-to-road_dist_road_real":2,"distance-to-bus_dist_bus":1376},"geometry":{"type":"Point","coordinates":[3.370362,6.469408]}},{"type":"Feature","properties":{"name":"First Gate Court - Plot 14","area":"Jakande","type":"2-Bed Flat","price":58600000,"land_size_sqm":0,"lat":6.464568,"lon":3.379087,"dist-water":0,"flood_risks":"High","price_per_sqm":null,"location_score":72,"distance-to-school_dist_school_real":926,"distance-to-hospital_dist_hospital":2568,"distance-to-supermarket_dist_market":4654,"distance-to-road_dist_road_real":88,"distance-to-bus_dist_bus":770},"geometry":{"type":"Point","coordinates":[3.379087,6.464568]}},{"type":"Feature","properties":{"name":"Jakande Pearl - Plot 15","area":"Jakande","type":"2-Bed Flat","price":80000000,"land_size_sqm":0,"lat":6.46927,"lon":3.361689,"dist-water":461,"flood_risks":"Medium","price_per_sqm":null,"location_score":70,"distance-to-school_dist_school_real":2509,"distance-to-hospital_dist_hospital":4418,"distance-to-supermarket_dist_market":4327,"distance-to-road_dist_road_real":46,"distance-to-bus_dist_bus":2333},"geometry":{"type":"Point","coordinates":[3.361689,6.46927]}},{"type":"Feature","properties":{"name":"Unity - Plot 16","area":"Jakande","type":"2-Bed Flat","price":60300000,"land_size_sqm":0,"lat":6.464075,"lon":3.361492,"dist-water":583,"flood_risks":"Medium","price_per_sqm":null,"location_score":65,"distance-to-school_dist_school_real":2869,"distance-to-hospital_dist_hospital":4104,"distance-to-supermarket_dist_market":4881,"distance-to-road_dist_road_real":118,"distance-to-bus_dist_bus":2456},"geometry":{"type":"Point","coordinates":[3.361492,6.464075]}},{"type":"Feature","properties":{"name":"Jakande Heights - Plot 17","area":"Jakande","type":"Land","price":115000000,"land_size_sqm":900,"lat":6.457601,"lon":3.384221,"dist-water":480,"flood_risks":"Medium","price_per_sqm":127778,"location_score":84,"distance-to-school_dist_school_real":792,"distance-to-hospital_dist_hospital":1632,"distance-to-supermarket_dist_market":4130,"distance-to-road_dist_road_real":13,"distance-to-bus_dist_bus":650},"geometry":{"type":"Point","coordinates":[3.384221,6.457601]}},{"type":"Feature","properties":{"name":"Jakande Royal - Plot 18","area":"Jakande","type":"2-Bed Flat","price":67300000,"land_size_sqm":0,"lat":6.46419,"lon":3.379179,"dist-water":0,"flood_risks":"High","price_per_sqm":null,"location_score":63,"distance-to-school_dist_school_real":914,"distance-to-hospital_dist_hospital":2532,"distance-to-supermarket_dist_market":4697,"distance-to-road_dist_road_real":102,"distance-to-bus_dist_bus":800},"geometry":{"type":"Point","coordinates":[3.379179,6.46419]}},{"type":"Feature","properties":{"name":"Peace Estate - Plot 19","area":"Jakande","type":"3-Bed Terrace","price":126500000,"land_size_sqm":300,"lat":6.45125,"lon":3.391019,"dist-water":255,"flood_risks":"High","price_per_sqm":421667,"location_score":68,"distance-to-school_dist_school_real":1464,"distance-to-hospital_dist_hospital":612,"distance-to-supermarket_dist_market":3107,"distance-to-road_dist_road_real":3,"distance-to-bus_dist_bus":1378},"geometry":{"type":"Point","coordinates":[3.391019,6.45125]}},{"type":"Feature","properties":{"name":"Jakande Pride - Plot 20","area":"Jakande","type":"Land","price":76800000,"land_size_sqm":648,"lat":6.450966,"lon":3.371221,"dist-water":114,"flood_risks":"High","price_per_sqm":118519,"location_score":68,"distance-to-school_dist_school_real":2301,"distance-to-hospital_dist_hospital":2728,"distance-to-supermarket_dist_market":4804,"distance-to-road_dist_road_real":6,"distance-to-bus_dist_bus":2163},"geometry":{"type":"Point","coordinates":[3.371221,6.450966]}},{"type":"Feature","properties":{"name":"Abraham Adesanya - Plot 1","area":"Ajah","type":"Land","price":347000000,"land_size_sqm":900,"lat":6.466476,"lon":3.345542,"dist-water":372,"flood_risks":"Medium","price_per_sqm":385556,"location_score":70,"distance-to-school_dist_school_real":3251,"distance-to-hospital_dist_hospital":3044,"distance-to-supermarket_dist_market":5427,"distance-to-road_dist_road_real":18,"distance-to-bus_dist_bus":4139},"geometry":{"type":"Point","coordinates":[3.345542,6.466476]}},{"type":"Feature","properties":{"name":"Ajah Gardens - Plot 2","area":"Ajah","type":"3-Bed Terrace","price":84200000,"land_size_sqm":300,"lat":6.468118,"lon":3.375672,"dist-water":232,"flood_risks":"High","price_per_sqm":280667,"location_score":73,"distance-to-school_dist_school_real":1379,"distance-to-hospital_dist_hospital":3113,"distance-to-supermarket_dist_market":4233,"distance-to-road_dist_road_real":39,"distance-to-bus_dist_bus":826},"geometry":{"type":"Point","coordinates":[3.375672,6.468118]}},{"type":"Feature","properties":{"name":"Ajah View - Plot 3","area":"Ajah","type":"2-Bed Flat","price":58200000,"land_size_sqm":0,"lat":6.476636,"lon":3.35616,"dist-water":435,"flood_risks":"Medium","price_per_sqm":null,"location_score":78,"distance-to-school_dist_school_real":1801,"distance-to-hospital_dist_hospital":4063,"distance-to-supermarket_dist_market":3842,"distance-to-road_dist_road_real":58,"distance-to-bus_dist_bus":3007},"geometry":{"type":"Point","coordinates":[3.35616,6.476636]}},{"type":"Feature","properties":{"name":"Thomas Estate - Plot 4","area":"Ajah","type":"Land","price":76200000,"land_size_sqm":900,"lat":6.464227,"lon":3.394797,"dist-water":183,"flood_risks":"High","price_per_sqm":84667,"location_score":73,"distance-to-school_dist_school_real":814,"distance-to-hospital_dist_hospital":1755,"distance-to-supermarket_dist_market":4125,"distance-to-road_dist_road_real":55,"distance-to-bus_dist_bus":908},"geometry":{"type":"Point","coordinates":[3.394797,6.464227]}},{"type":"Feature","properties":{"name":"Ajah Pearl - Plot 5","area":"Ajah","type":"5-Bed Flat","price":80700000,"land_size_sqm":0,"lat":6.45079,"lon":3.361076,"dist-water":623,"flood_risks":"Medium","price_per_sqm":null,"location_score":65,"distance-to-school_dist_school_real":3261,"distance-to-hospital_dist_hospital":3108,"distance-to-supermarket_dist_market":5801,"distance-to-road_dist_road_real":44,"distance-to-bus_dist_bus":3135},"geometry":{"type":"Point","coordinates":[3.361076,6.45079]}},{"type":"Feature","properties":{"name":"Ajah Heights - Plot 6","area":"Ajah","type":"Land","price":271000000,"land_size_sqm":450,"lat":6.461877,"lon":3.364853,"dist-water":691,"flood_risks":"Medium","price_per_sqm":602222,"location_score":67,"distance-to-school_dist_school_real":2509,"distance-to-hospital_dist_hospital":3728,"distance-to-supermarket_dist_market":5025,"distance-to-road_dist_road_real":47,"distance-to-bus_dist_bus":2196},"geometry":{"type":"Point","coordinates":[3.364853,6.461877]}},{"type":"Feature","properties":{"name":"Ajah Royal - Plot 7","area":"Ajah","type":"4-Bed Duplex","price":251000000,"land_size_sqm":450,"lat":6.472493,"lon":3.398157,"dist-water":0,"flood_risks":"High","price_per_sqm":557778,"location_score":55,"distance-to-school_dist_school_real":1512,"distance-to-hospital_dist_hospital":2678,"distance-to-supermarket_dist_market":4591,"distance-to-road_dist_road_real":650,"distance-to-bus_dist_bus":1650},"geometry":{"type":"Point","coordinates":[3.398157,6.472493]}},{"type":"Feature","properties":{"name":"Victory - Plot 8","area":"Ajah","type":"2-Bed Terrace","price":184100000,"land_size_sqm":300,"lat":6.477007,"lon":3.363815,"dist-water":363,"flood_risks":"Medium","price_per_sqm":613667,"location_score":75,"distance-to-school_dist_school_real":1718,"distance-to-hospital_dist_hospital":4642,"distance-to-supermarket_dist_market":3442,"distance-to-road_dist_road_real":6,"distance-to-bus_dist_bus":2196},"geometry":{"type":"Point","coordinates":[3.363815,6.477007]}},{"type":"Feature","properties":{"name":"Ajah Pride - Plot 9","area":"Ajah","type":"Land","price":490000000,"land_size_sqm":900,"lat":6.462191,"lon":3.350966,"dist-water":108,"flood_risks":"High","price_per_sqm":544444,"location_score":55,"distance-to-school_dist_school_real":3484,"distance-to-hospital_dist_hospital":3061,"distance-to-supermarket_dist_market":5516,"distance-to-road_dist_road_real":12,"distance-to-bus_dist_bus":3633},"geometry":{"type":"Point","coordinates":[3.350966,6.462191]}},{"type":"Feature","properties":{"name":"New Ajah - Plot 10","area":"Ajah","type":"Land","price":67600000,"land_size_sqm":900,"lat":6.479484,"lon":3.381211,"dist-water":270,"flood_risks":"High","price_per_sqm":75111,"location_score":76,"distance-to-school_dist_school_real":1077,"distance-to-hospital_dist_hospital":3795,"distance-to-supermarket_dist_market":3074,"distance-to-road_dist_road_real":38,"distance-to-bus_dist_bus":926},"geometry":{"type":"Point","coordinates":[3.381211,6.479484]}},{"type":"Feature","properties":{"name":"Abraham Adesanya - Plot 11","area":"Ajah","type":"2-Bed Flat","price":65100000,"land_size_sqm":0,"lat":6.457687,"lon":3.377879,"dist-water":0,"flood_risks":"High","price_per_sqm":null,"location_score":63,"distance-to-school_dist_school_real":1267,"distance-to-hospital_dist_hospital":2228,"distance-to-supermarket_dist_market":4634,"distance-to-road_dist_road_real":231,"distance-to-bus_dist_bus":1134},"geometry":{"type":"Point","coordinates":[3.377879,6.457687]}},{"type":"Feature","properties":{"name":"Ajah Gardens - Plot 12","area":"Ajah","type":"3-Bed Flat","price":68200000,"land_size_sqm":0,"lat":6.465302,"lon":3.37212,"dist-water":0,"flood_risks":"High","price_per_sqm":null,"location_score":68,"distance-to-school_dist_school_real":1700,"distance-to-hospital_dist_hospital":3214,"distance-to-supermarket_dist_market":4546,"distance-to-road_dist_road_real":85,"distance-to-bus_dist_bus":1308},"geometry":{"type":"Point","coordinates":[3.37212,6.465302]}},{"type":"Feature","properties":{"name":"Ajah View - Plot 13","area":"Ajah","type":"4-Bed Duplex","price":114200000,"land_size_sqm":450,"lat":6.470488,"lon":3.37647,"dist-water":91,"flood_risks":"High","price_per_sqm":253778,"location_score":80,"distance-to-school_dist_school_real":1409,"distance-to-hospital_dist_hospital":3243,"distance-to-supermarket_dist_market":3976,"distance-to-road_dist_road_real":46,"distance-to-bus_dist_bus":695},"geometry":{"type":"Point","coordinates":[3.37647,6.470488]}},{"type":"Feature","properties":{"name":"Thomas Estate - Plot 14","area":"Ajah","type":"Land","price":69600000,"land_size_sqm":648,"lat":6.465125,"lon":3.381025,"dist-water":0,"flood_risks":"High","price_per_sqm":107407,"location_score":72,"distance-to-school_dist_school_real":720,"distance-to-hospital_dist_hospital":2465,"distance-to-supermarket_dist_market":4623,"distance-to-road_dist_road_real":113,"distance-to-bus_dist_bus":623},"geometry":{"type":"Point","coordinates":[3.381025,6.465125]}},{"type":"Feature","properties":{"name":"Ajah Pearl - Plot 15","area":"Ajah","type":"Land","price":281000000,"land_size_sqm":450,"lat":6.453321,"lon":3.364416,"dist-water":806,"flood_risks":"Low","price_per_sqm":624444,"location_score":77,"distance-to-school_dist_school_real":2806,"distance-to-hospital_dist_hospital":3508,"distance-to-supermarket_dist_market":5589,"distance-to-road_dist_road_real":65,"distance-to-bus_dist_bus":2683},"geometry":{"type":"Point","coordinates":[3.364416,6.453321]}},{"type":"Feature","properties":{"name":"Ajah Heights - Plot 16","area":"Ajah","type":"3-Bed Terrace","price":336800000,"land_size_sqm":300,"lat":6.462796,"lon":3.367062,"dist-water":429,"flood_risks":"Medium","price_per_sqm":1122667,"location_score":60,"distance-to-school_dist_school_real":2257,"distance-to-hospital_dist_hospital":3550,"distance-to-supermarket_dist_market":4881,"distance-to-road_dist_road_real":34,"distance-to-bus_dist_bus":1932},"geometry":{"type":"Point","coordinates":[3.367062,6.462796]}},{"type":"Feature","properties":{"name":"Ajah Royal - Plot 17","area":"Ajah","type":"4-Bed Duplex","price":272000000,"land_size_sqm":450,"lat":6.469096,"lon":3.34467,"dist-water":668,"flood_risks":"Medium","price_per_sqm":604444,"location_score":62,"distance-to-school_dist_school_real":3044,"distance-to-hospital_dist_hospital":3245,"distance-to-supermarket_dist_market":5254,"distance-to-road_dist_road_real":21,"distance-to-bus_dist_bus":4214},"geometry":{"type":"Point","coordinates":[3.34467,6.469096]}},{"type":"Feature","properties":{"name":"Victory - Plot 18","area":"Ajah","type":"Land","price":33500000,"land_size_sqm":600,"lat":6.467547,"lon":3.391546,"dist-water":0,"flood_risks":"High","price_per_sqm":55833,"location_score":77,"distance-to-school_dist_school_real":600,"distance-to-hospital_dist_hospital":2169,"distance-to-supermarket_dist_market":4606,"distance-to-road_dist_road_real":8,"distance-to-bus_dist_bus":740},"geometry":{"type":"Point","coordinates":[3.391546,6.467547]}},{"type":"Feature","properties":{"name":"Ajah Pride - Plot 19","area":"Ajah","type":"Land","price":78200000,"land_size_sqm":300,"lat":6.463411,"lon":3.394234,"dist-water":285,"flood_risks":"High","price_per_sqm":260667,"location_score":73,"distance-to-school_dist_school_real":754,"distance-to-hospital_dist_hospital":1670,"distance-to-supermarket_dist_market":4067,"distance-to-road_dist_road_real":18,"distance-to-bus_dist_bus":836},"geometry":{"type":"Point","coordinates":[3.394234,6.463411]}},{"type":"Feature","properties":{"name":"New Ajah - Plot 20","area":"Ajah","type":"Land","price":35800000,"land_size_sqm":300,"lat":6.472072,"lon":3.375645,"dist-water":0,"flood_risks":"High","price_per_sqm":119333,"location_score":75,"distance-to-school_dist_school_real":1581,"distance-to-hospital_dist_hospital":3435,"distance-to-supermarket_dist_market":3796,"distance-to-road_dist_road_real":121,"distance-to-bus_dist_bus":799},"geometry":{"type":"Point","coordinates":[3.375645,6.472072]}},{"type":"Feature","properties":{"name":"Sangotedo New Town - Plot 1","area":"Sangotedo","type":"Land","price":46600000,"land_size_sqm":900,"lat":6.46603,"lon":3.383746,"dist-water":0,"flood_risks":"High","price_per_sqm":51778,"location_score":72,"distance-to-school_dist_school_real":466,"distance-to-hospital_dist_hospital":2360,"distance-to-supermarket_dist_market":4585,"distance-to-road_dist_road_real":152,"distance-to-bus_dist_bus":472},"geometry":{"type":"Point","coordinates":[3.383746,6.46603]}},{"type":"Feature","properties":{"name":"Sangotedo Gardens - Plot 2","area":"Sangotedo","type":"Land","price":41400000,"land_size_sqm":900,"lat":6.465516,"lon":3.326817,"dist-water":367,"flood_risks":"Medium","price_per_sqm":46000,"location_score":66,"distance-to-school_dist_school_real":4643,"distance-to-hospital_dist_hospital":1271,"distance-to-supermarket_dist_market":6913,"distance-to-road_dist_road_real":7,"distance-to-bus_dist_bus":6057},"geometry":{"type":"Point","coordinates":[3.326817,6.465516]}},{"type":"Feature","properties":{"name":"Sangotedo View - Plot 3","area":"Sangotedo","type":"Land","price":22600000,"land_size_sqm":450,"lat":6.460745,"lon":3.381408,"dist-water":130,"flood_risks":"High","price_per_sqm":50222,"location_score":77,"distance-to-school_dist_school_real":758,"distance-to-hospital_dist_hospital":2094,"distance-to-supermarket_dist_market":4596,"distance-to-road_dist_road_real":6,"distance-to-bus_dist_bus":633},"geometry":{"type":"Point","coordinates":[3.381408,6.460745]}},{"type":"Feature","properties":{"name":"Sangotedo Pearl - Plot 4","area":"Sangotedo","type":"2-Bed Flat","price":37900000,"land_size_sqm":0,"lat":6.456565,"lon":3.404536,"dist-water":310,"flood_risks":"Medium","price_per_sqm":null,"location_score":78,"distance-to-school_dist_school_real":1923,"distance-to-hospital_dist_hospital":1273,"distance-to-supermarket_dist_market":3004,"distance-to-road_dist_road_real":6,"distance-to-bus_dist_bus":2095},"geometry":{"type":"Point","coordinates":[3.404536,6.456565]}},{"type":"Feature","properties":{"name":"Sangotedo Heights - Plot 5","area":"Sangotedo","type":"4-Bed Duplex","price":281000000,"land_size_sqm":450,"lat":6.482616,"lon":3.355331,"dist-water":1074,"flood_risks":"Low","price_per_sqm":624444,"location_score":85,"distance-to-school_dist_school_real":1181,"distance-to-hospital_dist_hospital":3528,"distance-to-supermarket_dist_market":3350,"distance-to-road_dist_road_real":4,"distance-to-bus_dist_bus":2742},"geometry":{"type":"Point","coordinates":[3.355331,6.482616]}},{"type":"Feature","properties":{"name":"Sangotedo Royal - Plot 6","area":"Sangotedo","type":"4-Bed Duplex","price":211000000,"land_size_sqm":450,"lat":6.480518,"lon":3.384544,"dist-water":404,"flood_risks":"Medium","price_per_sqm":468889,"location_score":75,"distance-to-school_dist_school_real":1258,"distance-to-hospital_dist_hospital":3762,"distance-to-supermarket_dist_market":3081,"distance-to-road_dist_road_real":38,"distance-to-bus_dist_bus":1040},"geometry":{"type":"Point","coordinates":[3.384544,6.480518]}},{"type":"Feature","properties":{"name":"Oresing - Plot 7","area":"Sangotedo","type":"3-Bed Flat","price":66700000,"land_size_sqm":0,"lat":6.46542,"lon":3.369434,"dist-water":143,"flood_risks":"High","price_per_sqm":null,"location_score":68,"distance-to-school_dist_school_real":1997,"distance-to-hospital_dist_hospital":3466,"distance-to-supermarket_dist_market":4557,"distance-to-road_dist_road_real":7,"distance-to-bus_dist_bus":1576},"geometry":{"type":"Point","coordinates":[3.369434,6.46542]}},{"type":"Feature","properties":{"name":"Sangotedo Pride - Plot 8","area":"Sangotedo","type":"Land","price":26600000,"land_size_sqm":450,"lat":6.453594,"lon":3.350967,"dist-water":69,"flood_risks":"High","price_per_sqm":59111,"location_score":59,"distance-to-school_dist_school_real":4194,"distance-to-hospital_dist_hospital":2509,"distance-to-supermarket_dist_market":6373,"distance-to-road_dist_road_real":4,"distance-to-bus_dist_bus":3980},"geometry":{"type":"Point","coordinates":[3.350967,6.453594]}},{"type":"Feature","properties":{"name":"New Sangotedo - Plot 9","area":"Sangotedo","type":"Land","price":21600000,"land_size_sqm":600,"lat":6.460422,"lon":3.371341,"dist-water":96,"flood_risks":"High","price_per_sqm":36000,"location_score":73,"distance-to-school_dist_school_real":1824,"distance-to-hospital_dist_hospital":3010,"distance-to-supermarket_dist_market":5090,"distance-to-road_dist_road_real":9,"distance-to-bus_dist_bus":1682},"geometry":{"type":"Point","coordinates":[3.371341,6.460422]}},{"type":"Feature","properties":{"name":"Sangotedo Court - Plot 10","area":"Sangotedo","type":"3-Bed Flat","price":63400000,"land_size_sqm":0,"lat":6.434763,"lon":3.358029,"dist-water":0,"flood_risks":"High","price_per_sqm":null,"location_score":58,"distance-to-school_dist_school_real":4585,"distance-to-hospital_dist_hospital":1550,"distance-to-supermarket_dist_market":5680,"distance-to-road_dist_road_real":48,"distance-to-bus_dist_bus":4444},"geometry":{"type":"Point","coordinates":[3.358029,6.434763]}},{"type":"Feature","properties":{"name":"Sangotedo New Town - Plot 11","area":"Sangotedo","type":"Land","price":21100000,"land_size_sqm":600,"lat":6.480027,"lon":3.377754,"dist-water":409,"flood_risks":"Medium","price_per_sqm":35167,"location_score":83,"distance-to-school_dist_school_real":847,"distance-to-hospital_dist_hospital":4025,"distance-to-supermarket_dist_market":2940,"distance-to-road_dist_road_real":19,"distance-to-bus_dist_bus":1119},"geometry":{"type":"Point","coordinates":[3.377754,6.480027]}},{"type":"Feature","properties":{"name":"Sangotedo Gardens - Plot 11","area":"Sangotedo","type":"Land","price":45400000,"land_size_sqm":900,"lat":6.476111,"lon":3.321992,"dist-water":1096,"flood_risks":"Low","price_per_sqm":50444,"location_score":76,"distance-to-school_dist_school_real":4467,"distance-to-hospital_dist_hospital":1183,"distance-to-supermarket_dist_market":6667,"distance-to-road_dist_road_real":98,"distance-to-bus_dist_bus":5676},"geometry":{"type":"Point","coordinates":[3.321992,6.476111]}},{"type":"Feature","properties":{"name":"Sangotedo View - Plot 13","area":"Sangotedo","type":"Land","price":26400000,"land_size_sqm":450,"lat":6.465103,"lon":3.354657,"dist-water":79,"flood_risks":"High","price_per_sqm":58667,"location_score":63,"distance-to-school_dist_school_real":3086,"distance-to-hospital_dist_hospital":3580,"distance-to-supermarket_dist_market":5046,"distance-to-road_dist_road_real":48,"distance-to-bus_dist_bus":3163},"geometry":{"type":"Point","coordinates":[3.354657,6.465103]}},{"type":"Feature","properties":{"name":"Sangotedo Pearl - Plot 14","area":"Sangotedo","type":"Land","price":27300000,"land_size_sqm":450,"lat":6.474709,"lon":3.347878,"dist-water":742,"flood_risks":"Medium","price_per_sqm":60667,"location_score":75,"distance-to-school_dist_school_real":2329,"distance-to-hospital_dist_hospital":3565,"distance-to-supermarket_dist_market":4548,"distance-to-road_dist_road_real":6,"distance-to-bus_dist_bus":3877},"geometry":{"type":"Point","coordinates":[3.347878,6.474709]}},{"type":"Feature","properties":{"name":"Sangotedo Heights - Plot 15","area":"Sangotedo","type":"4-Bed Duplex","price":355400000,"land_size_sqm":450,"lat":6.491586,"lon":3.344147,"dist-water":999,"flood_risks":"Low","price_per_sqm":789778,"location_score":78,"distance-to-school_dist_school_real":1627,"distance-to-hospital_dist_hospital":1949,"distance-to-supermarket_dist_market":3698,"distance-to-road_dist_road_real":11,"distance-to-bus_dist_bus":2688},"geometry":{"type":"Point","coordinates":[3.344147,6.491586]}},{"type":"Feature","properties":{"name":"Sangotedo Royal - Plot 16","area":"Sangotedo","type":"Land","price":38300000,"land_size_sqm":600,"lat":6.482424,"lon":3.327631,"dist-water":258,"flood_risks":"High","price_per_sqm":63833,"location_score":63,"distance-to-school_dist_school_real":3631,"distance-to-hospital_dist_hospital":1354,"distance-to-supermarket_dist_market":5784,"distance-to-road_dist_road_real":20,"distance-to-bus_dist_bus":4767},"geometry":{"type":"Point","coordinates":[3.327631,6.482424]}},{"type":"Feature","properties":{"name":"Bloising - Plot 17","area":"Sangotedo","type":"Land","price":18400000,"land_size_sqm":324,"lat":6.456016,"lon":3.356917,"dist-water":81,"flood_risks":"High","price_per_sqm":56790,"location_score":63,"distance-to-school_dist_school_real":3489,"distance-to-hospital_dist_hospital":3217,"distance-to-supermarket_dist_market":5884,"distance-to-road_dist_road_real":7,"distance-to-bus_dist_bus":3274},"geometry":{"type":"Point","coordinates":[3.356917,6.456016]}},{"type":"Feature","properties":{"name":"Sangotedo Pride - Plot 18","area":"Sangotedo","type":"4-Bed Duplex","price":138000000,"land_size_sqm":450,"lat":6.465221,"lon":3.384486,"dist-water":0,"flood_risks":"High","price_per_sqm":306667,"location_score":72,"distance-to-school_dist_school_real":354,"distance-to-hospital_dist_hospital":2240,"distance-to-supermarket_dist_market":4691,"distance-to-road_dist_road_real":117,"distance-to-bus_dist_bus":351},"geometry":{"type":"Point","coordinates":[3.384486,6.465221]}},{"type":"Feature","properties":{"name":"New Sangotedo - Plot 19","area":"Sangotedo","type":"Land","price":49400000,"land_size_sqm":0,"lat":6.460973,"lon":3.386113,"dist-water":347,"flood_risks":"Medium","price_per_sqm":null,"location_score":82,"distance-to-school_dist_school_real":365,"distance-to-hospital_dist_hospital":1753,"distance-to-supermarket_dist_market":4287,"distance-to-road_dist_road_real":29,"distance-to-bus_dist_bus":227},"geometry":{"type":"Point","coordinates":[3.386113,6.460973]}},{"type":"Feature","properties":{"name":"Sangotedo Court - Plot 20","area":"Sangotedo","type":"3-Bed Flat","price":66700000,"land_size_sqm":0,"lat":6.466752,"lon":3.356334,"dist-water":81,"flood_risks":"High","price_per_sqm":null,"location_score":63,"distance-to-school_dist_school_real":2883,"distance-to-hospital_dist_hospital":3840,"distance-to-supermarket_dist_market":4803,"distance-to-road_dist_road_real":16,"distance-to-bus_dist_bus":2951},"geometry":{"type":"Point","coordinates":[3.356334,6.466752]}}]};
+    const features = GEOJSON.features;
+    const properties = features.map(feature => feature.properties);
+    const fields = {
+      price: "price",
+      pricePerSqm: "price_per_sqm",
+      score: "location_score",
+      road: "distance-to-road_dist_road_real",
+      school: "distance-to-school_dist_school_real",
+      hospital: "distance-to-hospital_dist_hospital",
+      supermarket: "distance-to-supermarket_dist_market",
+      bus: "distance-to-bus_dist_bus",
+      water: "dist-water",
+      flood: "flood_risks"
+    };
+    const topPick = features.find(f => f.properties.name === "Sannie - Plot 8");
+    const number = new Intl.NumberFormat("en-NG", { maximumFractionDigits: 0 });
+    const currency = value => value == null || !Number.isFinite(Number(value)) ? "N/A" :
+      new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(value);
+    const fmt = value => value == null || value === "" ? "N/A" : number.format(value);
+    const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, ch => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[ch]);
+    const scoreColor = score => score >= 80 ? "#22c55e" : score >= 60 ? "#eab308" : "#ef4444";
+    const groupedType = type => type === "Land" ? "Land" :
+      type.includes("Flat") ? "Flat" :
+      type.includes("Terrace") ? "Terrace" :
+      type.includes("Duplex") ? "Duplex" : "Other";
+    const propertyBounds = L.latLngBounds(features.map(feature => [
+      feature.geometry.coordinates[1],
+      feature.geometry.coordinates[0]
+    ]));
+    const mapExtent = propertyBounds.pad(0.3);
+    const map = L.map("map", {
+      crs: L.CRS.EPSG4326,
+      minZoom: 2,
+      maxZoom: 18,
+      maxBounds: mapExtent,
+      maxBoundsViscosity: 1,
+      preferCanvas: true,
+      zoomControl: true
+    });
+    const SatelliteGridLayer = L.GridLayer.extend({
+      createTile(coords, done) {
+        const tile = document.createElement("img");
+        const bounds = this._tileCoordsToBounds(coords);
+        const southWest = bounds.getSouthWest();
+        const northEast = bounds.getNorthEast();
+        const size = this.getTileSize();
+        const params = new URLSearchParams({
+          bbox: [southWest.lng, southWest.lat, northEast.lng, northEast.lat].join(","),
+          bboxSR: "4326",
+          imageSR: "4326",
+          size: `${size.x},${size.y}`,
+          format: "jpg",
+          f: "image"
+        });
+        tile.alt = "";
+        tile.setAttribute("role", "presentation");
+        tile.onload = () => done(null, tile);
+        tile.onerror = error => done(error, tile);
+        tile.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?${params}`;
+        return tile;
+      }
+    });
+    const basemap = new SatelliteGridLayer({
+      tileSize: 256,
+      attribution: 'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Vantor, Earthstar Geographics, and the GIS User Community'
+    }).addTo(map);
+    basemap.on("tileerror", () => {
+      document.getElementById("basemap-status").textContent = "Basemap tiles could not be loaded.";
+    });
+    basemap.on("tileload", () => {
+      document.getElementById("basemap-status").textContent = "";
+    });
+    const markerLayer = L.layerGroup().addTo(map);
+    const starLayer = L.layerGroup().addTo(map);
+    let graticuleLayer = L.layerGroup().addTo(map);
+    let selectedFeature = topPick || null;
+    let visibleFeatures = features.slice();
+    const markers = new Map();
+    const areaChart = new Chart(document.getElementById("area-chart"), {
+      type: "bar",
+      data: { labels: [], datasets: [{ label: "Mean score", data: [], backgroundColor: "#0f766e", borderRadius: 5 }] },
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, title: { display: true, text: "Score / 100" } } }, plugins: { legend: { display: false } } }
+    });
+    const priceChart = new Chart(document.getElementById("price-chart"), {
+      type: "bar",
+      data: { labels: ["Land", "Flat"], datasets: [{ label: "Mean asking price", data: [], backgroundColor: ["#2563eb", "#0f766e"], borderRadius: 5 }] },
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { callback: value => "₦" + number.format(value / 1000000) + "M" } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: item => currency(item.raw) } } } }
+    });
+    const floodChart = new Chart(document.getElementById("flood-chart"), {
+      type: "doughnut",
+      data: { labels: ["Low", "Medium", "High"], datasets: [{ data: [0, 0, 0], backgroundColor: ["#22c55e", "#eab308", "#ef4444"], borderColor: "#fff", borderWidth: 3 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } } }
+    });
+    const scatterChart = new Chart(document.getElementById("scatter-chart"), {
+      type: "scatter",
+      data: { datasets: [] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { min: 50, max: 100, title: { display: true, text: "Location score" } },
+          y: { beginAtZero: true, title: { display: true, text: "Asking price (₦)" }, ticks: { callback: value => "₦" + number.format(value / 1000000) + "M" } }
+        },
+        plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: item => {
+          const point = item.raw;
+          return `${point.name}: ${currency(point.y)} · score ${point.x}`;
+        } } } }
+      }
+    });
+
+    const areaFilter = document.getElementById("area-filter");
+    [...new Set(properties.map(p => p.area))].sort().forEach(area => {
+      const option = document.createElement("option");
+      option.value = area;
+      option.textContent = area;
+      areaFilter.appendChild(option);
+    });
+    const minScore = Math.min(...properties.map(p => p[fields.score]));
+    const maxScore = Math.max(...properties.map(p => p[fields.score]));
+    const minInput = document.getElementById("score-min");
+    const maxInput = document.getElementById("score-max");
+    for (const input of [minInput, maxInput]) {
+      input.min = String(minScore);
+      input.max = String(maxScore);
+      input.step = "1";
+    }
+    minInput.value = String(minScore);
+    maxInput.value = String(maxScore);
+
+    function graticuleStep(span) {
+      const raw = Math.max(span / 6, 0.001);
+      const power = Math.pow(10, Math.floor(Math.log10(raw)));
+      const fraction = raw / power;
+      return (fraction >= 5 ? 5 : fraction >= 2 ? 2 : 1) * power;
+    }
+    function drawGraticule() {
+      graticuleLayer.clearLayers();
+      const bounds = map.getBounds();
+      const south = Math.max(-89.5, bounds.getSouth());
+      const north = Math.min(89.5, bounds.getNorth());
+      const step = graticuleStep(Math.max(bounds.getNorth() - bounds.getSouth(), bounds.getEast() - bounds.getWest()));
+      const style = { color: "#a6b5c2", weight: 1, opacity: 0.36, interactive: false };
+      for (let lat = Math.ceil(south / step) * step; lat <= north; lat += step) {
+        graticuleLayer.addLayer(L.polyline([[lat, bounds.getWest()], [lat, bounds.getEast()]], style));
+      }
+      for (let lon = Math.ceil(bounds.getWest() / step) * step; lon <= bounds.getEast(); lon += step) {
+        graticuleLayer.addLayer(L.polyline([[south, lon], [north, lon]], style));
+      }
+    }
+    map.on("moveend", drawGraticule);
+
+    function calculateComponentScores(p) {
+      const pricePerSqm = p[fields.pricePerSqm];
+      const roadDistance = p[fields.road];
+      const schoolDistance = p[fields.school];
+      const hospitalDistance = p[fields.hospital];
+      const supermarketDistance = p[fields.supermarket];
+      const busDistance = p[fields.bus];
+      const floodRisk = p[fields.flood];
+      const distanceScore = (distance, firstLimit, secondLimit, firstPoints, secondPoints, lastPoints) =>
+        distance == null ? null : distance < firstLimit ? firstPoints :
+          distance < secondLimit ? secondPoints : lastPoints;
+      const components = [
+        { name: "Price", score: pricePerSqm == null ? 15 : pricePerSqm < 400000 ? 20 : pricePerSqm < 700000 ? 12 : 5,
+          context: pricePerSqm == null ? "N/A per sqm" : `${currency(pricePerSqm)}/sqm` },
+        { name: "Road", score: distanceScore(roadDistance, 100, 500, 15, 10, 5),
+          context: roadDistance == null ? "N/A" : `${fmt(roadDistance)} m` },
+        { name: "School", score: distanceScore(schoolDistance, 2000, 3000, 15, 10, 5),
+          context: schoolDistance == null ? "N/A" : `${fmt(schoolDistance)} m` },
+        { name: "Hospital", score: distanceScore(hospitalDistance, 5000, 7000, 10, 7, 3),
+          context: hospitalDistance == null ? "N/A" : `${fmt(hospitalDistance)} m` },
+        { name: "Supermarket", score: distanceScore(supermarketDistance, 4000, 6000, 10, 7, 3),
+          context: supermarketDistance == null ? "N/A" : `${fmt(supermarketDistance)} m` },
+        { name: "Bus", score: distanceScore(busDistance, 300, 800, 10, 7, 3),
+          context: busDistance == null ? "N/A" : `${fmt(busDistance)} m` },
+        { name: "Flood", score: floodRisk === "Low" ? 20 : floodRisk === "Medium" ? 10 : 3,
+          context: floodRisk ?? "N/A" }
+      ];
+      const complete = components.every(component => Number.isFinite(component.score));
+      return {
+        components,
+        total: complete ? components.reduce((sum, component) => sum + component.score, 0) : null,
+        matchesStoredScore: complete && components.reduce((sum, component) => sum + component.score, 0) === p[fields.score]
+      };
+    }
+
+    function showDetails(feature) {
+      selectedFeature = feature;
+      const p = feature.properties;
+      const calculated = calculateComponentScores(p);
+      const distanceRows = [
+        ["Road", fields.road], ["School", fields.school], ["Hospital", fields.hospital],
+        ["Supermarket", fields.supermarket], ["Bus", fields.bus], ["Water", fields.water]
+      ];
+      const rows = distanceRows.map(([label, key]) => `<tr><th>${label}</th><td>${p[key] == null ? "N/A" : `${fmt(p[key])} m`}</td></tr>`).join("");
+      const subscores = calculated.components.map(component =>
+        `<tr><th>${component.name}</th><td>${component.score == null ? "N/A" : `${component.score} pts`} <span class="missing-note">(${escapeHtml(component.context)})</span></td></tr>`
+      ).join("");
+      const storedScoreNote = calculated.matchesStoredScore
+        ? `Calculated using the supplied thresholds; matches stored location_score ${fmt(p[fields.score])}.`
+        : "Calculated using the supplied thresholds; compare with the stored location_score above.";
+      document.getElementById("property-details").className = "";
+      document.getElementById("property-details").innerHTML = `
+        <div class="detail-title">${escapeHtml(p.name)}</div>
+        <p class="detail-subtitle">${escapeHtml(p.area)} · ${escapeHtml(p.type)} · ${escapeHtml(p[fields.flood])} flood risk</p>
+        <div class="detail-score" style="background:${p[fields.score] >= 80 ? "#ecfdf5" : p[fields.score] >= 60 ? "#fefce8" : "#fef2f2"};color:${p[fields.score] >= 80 ? "#166534" : p[fields.score] >= 60 ? "#854d0e" : "#991b1b"}">Location score ${fmt(p[fields.score])}/100</div>
+        <div class="detail-grid">
+          <div class="detail-stat"><span>Asking price</span><strong>${currency(p[fields.price])}</strong></div>
+          <div class="detail-stat"><span>Price per sqm</span><strong>${p[fields.pricePerSqm] == null ? "N/A" : currency(p[fields.pricePerSqm])}</strong></div>
+          <div class="detail-stat"><span>Land size</span><strong>${p.land_size_sqm == null ? "N/A" : `${fmt(p.land_size_sqm)} sqm`}</strong></div>
+          <div class="detail-stat"><span>Flood category</span><strong>${escapeHtml(p[fields.flood] ?? "N/A")}</strong></div>
+        </div>
+        <h3 class="subscore-title">Recorded distances</h3>
+        <table class="detail-table"><tbody>${rows}</tbody></table>
+        <h3 class="subscore-title">Component scores</h3>
+        <table class="detail-table"><tbody>${subscores}<tr><th>Calculated total</th><td>${calculated.total == null ? "N/A" : `${calculated.total}/100`}</td></tr></tbody></table>
+        <p class="missing-note">${storedScoreNote}</p>`;
+    }
+
+    function popupContent(feature) {
+      const p = feature.properties;
+      if (feature === topPick) return "<strong>TOP PICK - Sannie Plot 8 - 97/100</strong>";
+      return `<strong>${escapeHtml(p.name)}</strong><br>${escapeHtml(p.area)} · ${escapeHtml(p.type)}<br>Score: ${fmt(p[fields.score])}/100 · Price: ${currency(p[fields.price])}`;
+    }
+    function showPopup(feature) {
+      const marker = markers.get(feature.properties.name);
+      if (marker) marker.openPopup();
+    }
+    function renderMap(rows) {
+      markerLayer.clearLayers();
+      starLayer.clearLayers();
+      markers.clear();
+      rows.forEach(feature => {
+        const p = feature.properties;
+        const [lon, lat] = feature.geometry.coordinates;
+        const circle = L.circleMarker([lat, lon], {
+          radius: feature === topPick ? 8 : 6,
+          color: feature === topPick ? "#a66b00" : "#fff",
+          weight: feature === topPick ? 2 : 1,
+          fillColor: scoreColor(p[fields.score]),
+          fillOpacity: 0.92
+        });
+        circle.bindPopup(popupContent(feature), { maxWidth: 260 });
+        circle.on("click", () => showDetails(feature));
+        circle.bindTooltip(`${p.name} · ${p[fields.score]}/100`, { direction: "top" });
+        markerLayer.addLayer(circle);
+        markers.set(p.name, circle);
+        if (feature === topPick) {
+          const star = L.marker([lat, lon], {
+            icon: L.divIcon({ className: "top-pick-star", html: "★", iconSize: [36, 38], iconAnchor: [18, 19] }),
+            zIndexOffset: 1000
+          });
+          star.bindPopup(popupContent(feature), { maxWidth: 260 });
+          star.on("click", () => showDetails(feature));
+          star.bindTooltip("Top pick · Sannie - Plot 8", { direction: "top" });
+          starLayer.addLayer(star);
+        }
+      });
+      document.getElementById("map-count").textContent = String(rows.length);
+    }
+
+    function updateDetailsForFilters(rows) {
+      if (selectedFeature && rows.includes(selectedFeature)) {
+        showDetails(selectedFeature);
+      } else {
+        selectedFeature = null;
+        const el = document.getElementById("property-details");
+        el.className = "details-empty";
+        el.textContent = rows.length ? "Choose a property to inspect its recorded values." : "No properties match the current filters.";
+      }
+    }
+    function updateKpis(rows) {
+      document.getElementById("kpi-total").textContent = String(rows.length);
+      document.getElementById("kpi-total-sub").textContent = `of ${features.length} properties`;
+      const mean = key => rows.length ? rows.reduce((sum, f) => sum + Number(f.properties[key] || 0), 0) / rows.length : null;
+      document.getElementById("kpi-score").textContent = rows.length ? mean(fields.score).toFixed(1) : "N/A";
+      document.getElementById("kpi-price").textContent = rows.length ? currency(mean(fields.price)) : "N/A";
+      const best = rows.reduce((current, f) => !current || f.properties[fields.score] > current.properties[fields.score] ? f : current, null);
+      document.getElementById("kpi-best").textContent = best ? best.properties.name : "N/A";
+      document.getElementById("kpi-best-sub").textContent = best ? `${best.properties[fields.score]}/100 · ${best.properties.area}` : "No matching records";
+      const low = rows.filter(f => f.properties[fields.flood] === "Low").length;
+      document.getElementById("kpi-low-flood").textContent = rows.length ? `${(low / rows.length * 100).toFixed(1)}%` : "N/A";
+    }
+    function updateCharts(rows) {
+      const areas = [...new Set(rows.map(f => f.properties.area))].sort();
+      areaChart.data.labels = areas;
+      areaChart.data.datasets[0].data = areas.map(area => {
+        const subset = rows.filter(f => f.properties.area === area);
+        return subset.reduce((sum, f) => sum + f.properties[fields.score], 0) / subset.length;
+      });
+      areaChart.update();
+      const landAndFlat = ["Land", "Flat"].map(type => {
+        const subset = rows.filter(f => groupedType(f.properties.type) === type);
+        return subset.length ? subset.reduce((sum, f) => sum + f.properties[fields.price], 0) / subset.length : null;
+      });
+      priceChart.data.datasets[0].data = landAndFlat;
+      priceChart.update();
+      floodChart.data.datasets[0].data = ["Low", "Medium", "High"].map(risk => rows.filter(f => f.properties[fields.flood] === risk).length);
+      floodChart.update();
+      const groups = [
+        ["Land", "#2563eb"], ["Flat", "#0f766e"], ["Terrace", "#eab308"], ["Duplex", "#8b5cf6"]
+      ];
+      scatterChart.data.datasets = groups.map(([type, color]) => ({
+        label: type,
+        data: rows.filter(f => groupedType(f.properties.type) === type).map(f => ({
+          x: f.properties[fields.score], y: f.properties[fields.price], name: f.properties.name
+        })),
+        backgroundColor: color,
+        pointRadius: 5,
+        pointHoverRadius: 7
+      }));
+      scatterChart.update();
+    }
+    function renderResults(rows) {
+      const list = document.getElementById("result-list");
+      document.getElementById("result-total").textContent = `${rows.length} matching`;
+      if (!rows.length) {
+        list.innerHTML = '<div class="no-results">No properties match these filters.</div>';
+        return;
+      }
+      list.innerHTML = rows.map(feature => {
+        const p = feature.properties;
+        const color = scoreColor(p[fields.score]);
+        const tint = p[fields.score] >= 80 ? "#dcfce7" : p[fields.score] >= 60 ? "#fef9c3" : "#fee2e2";
+        return `<button type="button" class="property-row" data-property="${escapeHtml(p.name)}">
+          <span><span class="property-name">${escapeHtml(p.name)}</span><span class="property-meta">${escapeHtml(p.area)} · ${escapeHtml(p.type)} · ${currency(p[fields.price])}</span></span>
+          <span class="score-pill" style="background:${tint};color:${color}">${fmt(p[fields.score])}/100</span>
+          <span class="risk-pill">${escapeHtml(p[fields.flood])} flood</span>
+        </button>`;
+      }).join("");
+      list.querySelectorAll(".property-row").forEach(button => {
+        button.addEventListener("click", () => {
+          const feature = rows.find(f => f.properties.name === button.dataset.property);
+          if (!feature) return;
+          showDetails(feature);
+          const [lon, lat] = feature.geometry.coordinates;
+          document.getElementById("map").scrollIntoView({
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+            block: "center"
+          });
+          requestAnimationFrame(() => {
+            map.invalidateSize({ pan: false });
+            map.setView([lat, lon], Math.max(map.getZoom(), 13), { animate: false });
+            showPopup(feature);
+          });
+        });
+      });
+    }
+    function applyFilters() {
+      let low = Number(minInput.value);
+      let high = Number(maxInput.value);
+      if (low > high) {
+        if (document.activeElement === minInput) maxInput.value = String(low);
+        else minInput.value = String(high);
+        low = Number(minInput.value);
+        high = Number(maxInput.value);
+      }
+      document.getElementById("score-min-label").textContent = `Min ${low}`;
+      document.getElementById("score-max-label").textContent = `Max ${high}`;
+      const type = document.getElementById("type-filter").value;
+      const area = areaFilter.value;
+      const flood = document.getElementById("flood-filter").value;
+      const query = document.getElementById("search").value.trim().toLocaleLowerCase();
+      visibleFeatures = features.filter(feature => {
+        const p = feature.properties;
+        const typeMatches = type === "all" || groupedType(p.type) === type;
+        return typeMatches &&
+          (area === "all" || p.area === area) &&
+          (flood === "all" || p[fields.flood] === flood) &&
+          p[fields.score] >= low && p[fields.score] <= high &&
+          (!query || p.name.toLocaleLowerCase().includes(query));
+      });
+      renderMap(visibleFeatures);
+      updateKpis(visibleFeatures);
+      updateDetailsForFilters(visibleFeatures);
+      updateCharts(visibleFeatures);
+      renderResults(visibleFeatures);
+    }
+    ["type-filter", "area-filter", "flood-filter", "search"].forEach(id => {
+      document.getElementById(id).addEventListener(id === "search" ? "input" : "change", applyFilters);
+    });
+    minInput.addEventListener("input", applyFilters);
+    maxInput.addEventListener("input", applyFilters);
+    document.getElementById("reset-filters").addEventListener("click", () => {
+      document.getElementById("type-filter").value = "all";
+      areaFilter.value = "all";
+      document.getElementById("flood-filter").value = "all";
+      document.getElementById("search").value = "";
+      minInput.value = String(minScore);
+      maxInput.value = String(maxScore);
+      selectedFeature = topPick || null;
+      applyFilters();
+      if (topPick) showDetails(topPick);
+      if (topPick) {
+        const [lon, lat] = topPick.geometry.coordinates;
+        map.setView([lat, lon], 13);
+      }
+    });
+
+    if (topPick) {
+      const [lon, lat] = topPick.geometry.coordinates;
+      map.setView([lat, lon], 13);
+    } else {
+      const bounds = L.latLngBounds(features.map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0]]));
+      map.fitBounds(bounds.pad(0.1));
+    }
+    drawGraticule();
+    applyFilters();
+    if (topPick) {
+      showDetails(topPick);
+      showPopup(topPick);
+    }
+  </script>
+</body>
+</html>
